@@ -217,6 +217,11 @@ table.stats{width:100%;border-collapse:collapse;font-size:.9rem;background:var(-
   box-shadow:0 8px 24px rgba(0,0,0,.5);transition:opacity .25s,transform .25s;max-width:min(92vw,520px);text-align:center;
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.code{width:100%;min-height:92px;resize:vertical;background:#0f1a15;color:var(--text);border:1px solid var(--line);
+  border-radius:10px;padding:8px;font:12px/1.3 ui-monospace,Menlo,Consolas,monospace;word-break:break-all;margin:6px 0}
+.ol-status{min-height:1.4em;margin:8px 0 0;font-weight:600;color:#ffe29a}
+.ol-status.err{color:#ffb3ab}
+.modal ol{padding-left:1.3em}
 @media (prefers-reduced-motion:reduce){
   .disc{transition-duration:.01s}
   .disc-wrap.flipping,.disc-wrap.pop,.cell.best,.modal{animation:none}
@@ -263,6 +268,8 @@ table.stats{width:100%;border-collapse:collapse;font-size:.9rem;background:var(-
       </div>
 
       <button id="twoPlayerBtn" class="btn wide" type="button">👥 Mode 2 Pemain (bergantian di perangkat ini)</button>
+
+      <button id="onlineBtn" class="btn wide" type="button">🌐 Main Online (dengan teman di perangkat lain)</button>
 
       <div class="row">
         <label class="switch"><input type="checkbox" id="menuSound"> Suara</label>
@@ -354,6 +361,52 @@ table.stats{width:100%;border-collapse:collapse;font-size:.9rem;background:var(-
       <button class="btn" id="changeLevelBtn" type="button">Ganti Kesulitan</button>
       <button class="btn" type="button" data-close="resultModal">Lihat Papan</button>
     </div>
+  </div>
+</div>
+
+<div class="backdrop hidden" id="onlineModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="onlineTitle">
+    <h3 id="onlineTitle">Main Online</h3>
+
+    <div id="olChoose">
+      <p>Main Othello dengan teman di perangkat lain. Tanpa server: kalian cukup bertukar kode satu kali lewat WhatsApp atau chat lain, lalu langkah dikirim langsung antar-browser.</p>
+      <p>Pembuat room bermain dengan warna sesuai pilihan di menu (Anda: <b id="olColor">Hitam</b>).</p>
+      <div class="modal-actions">
+        <button class="btn primary" id="olHostBtn" type="button">Buat Room</button>
+        <button class="btn" id="olJoinBtn" type="button">Gabung Room</button>
+      </div>
+    </div>
+
+    <div id="olHost" class="hidden">
+      <ol>
+        <li>Salin kode di bawah dan kirim ke teman Anda.</li>
+        <li>Teman memilih <b>Gabung Room</b>, menempel kode Anda, lalu mengirim balik <b>kode jawaban</b>.</li>
+        <li>Tempel kode jawaban itu di kolom kedua, lalu tekan <b>Sambungkan</b>.</li>
+      </ol>
+      <label for="hostCode"><b>Kode Anda</b></label>
+      <textarea id="hostCode" class="code" readonly placeholder="Membuat kode..."></textarea>
+      <button class="btn" id="copyHost" type="button">📋 Salin Kode</button>
+      <label for="hostAnswer" style="display:block;margin-top:10px"><b>Kode jawaban dari teman</b></label>
+      <textarea id="hostAnswer" class="code" placeholder="Tempel kode jawaban di sini"></textarea>
+      <button class="btn primary" id="hostConnect" type="button">Sambungkan</button>
+    </div>
+
+    <div id="olGuest" class="hidden">
+      <ol>
+        <li>Tempel kode dari teman (pembuat room) di kolom pertama.</li>
+        <li>Tekan <b>Buat Jawaban</b>, salin kode jawaban, dan kirim kembali ke teman.</li>
+        <li>Tunggu sampai tersambung — permainan mulai otomatis.</li>
+      </ol>
+      <label for="guestOffer"><b>Kode dari teman</b></label>
+      <textarea id="guestOffer" class="code" placeholder="Tempel kode di sini"></textarea>
+      <button class="btn primary" id="guestMake" type="button">Buat Jawaban</button>
+      <label for="guestCode" style="display:block;margin-top:10px"><b>Kode jawaban Anda</b></label>
+      <textarea id="guestCode" class="code" readonly placeholder="Muncul setelah menekan Buat Jawaban"></textarea>
+      <button class="btn" id="copyGuest" type="button">📋 Salin Jawaban</button>
+    </div>
+
+    <p class="ol-status" id="olStatus" role="status" aria-live="polite"></p>
+    <div class="modal-actions"><button class="btn" type="button" id="olCancel">Batal</button></div>
   </div>
 </div>
 
@@ -864,6 +917,7 @@ function decodeBoard(s) {
 }
 
 function saveGame() {
+  if (state && state.mode === 'online') return;     // game online tidak disimpan
   if (!state || state.over) { Store.remove(KEYS.game); return; }
   Store.set(KEYS.game, {
     v: 1, board: encodeBoard(state.board), turn: state.turn, mode: state.mode, level: state.level,
@@ -912,12 +966,16 @@ function coordName(i) { return 'abcdefgh'[i % 8] + (Math.floor(i / 8) + 1); }
 function sideName(color) { return color === BLACK ? 'Hitam' : 'Putih'; }
 function whoLabel(color) {
   if (state.mode === 'two') return sideName(color);
-  return color === state.humanColor ? 'Anda' : 'Komputer';
+  return color === state.humanColor ? 'Anda' : (state.mode === 'online' ? 'Lawan' : 'Komputer');
 }
 function sideLabel(color) {
   return state.mode === 'two' ? sideName(color) : sideName(color) + ' (' + whoLabel(color) + ')';
 }
-function isHumanTurn() { return state.mode === 'two' || state.turn === state.humanColor; }
+function isHumanTurn() {
+  if (state.mode === 'two') return true;
+  if (state.mode === 'online' && !online.connected) return false;
+  return state.turn === state.humanColor;
+}
 
 function buildBoard() {
   boardEl.innerHTML = '';
@@ -1025,7 +1083,7 @@ function updatePanel() {
   $('#cardBlack').classList.toggle('active', !state.over && state.turn === BLACK);
   $('#cardWhite').classList.toggle('active', !state.over && state.turn === WHITE);
   $('#infoTurn').textContent = state.over ? 'Selesai' : (state.mode === 'two' ? sideName(state.turn) : whoLabel(state.turn));
-  $('#infoLevel').textContent = state.mode === 'two' ? '2 Pemain' : LEVEL_NAMES[state.level];
+  $('#infoLevel').textContent = state.mode === 'two' ? '2 Pemain' : state.mode === 'online' ? 'Online' : LEVEL_NAMES[state.level];
   $('#infoMoves').textContent = state.moveCount;
 
   const th = $('#thinking');
@@ -1035,7 +1093,11 @@ function updatePanel() {
 
   const undoable = !thinking && !hinting && !state.over && undoIndex() >= 0;
   $('#undoBtn').disabled = !undoable;
-  $('#hintBtn').disabled = thinking || hinting || state.over || !isHumanTurn();
+  $('#hintBtn').disabled = thinking || hinting || state.over || !isHumanTurn() || state.mode === 'online';
+  const isOnline = state.mode === 'online';
+  $('#newBtn').disabled = isOnline && !state.over;
+  $('#newBtn').textContent = isOnline ? '🔄 Main Lagi' : '🔄 Game Baru';
+  $('#levelBtn').textContent = isOnline ? '🚪 Keluar' : '⚙ Ganti Kesulitan';
   $('#soundBtn').textContent = settings.sound ? '🔊 Suara' : '🔇 Senyap';
   $('#soundBtn').setAttribute('aria-pressed', settings.sound ? 'true' : 'false');
   $('#hintsToggle').checked = settings.hints;
@@ -1048,6 +1110,8 @@ function updatePanel() {
   else if (thinking) text = 'Giliran ' + sideLabel(state.turn) + '...';
   else if (state.mode === 'two') text = 'Giliran ' + sideName(state.turn) + (settings.hints ? ' — pilih kotak bertanda titik.' : '.');
   else if (isHumanTurn()) text = 'Giliran Anda (' + sideName(state.turn) + ')' + (settings.hints ? ' — pilih kotak bertanda titik.' : '.');
+  else if (state.mode === 'online' && !online.connected) text = 'Koneksi terputus.';
+  else if (state.mode === 'online') text = 'Menunggu langkah Lawan (' + sideName(state.turn) + ')...';
   else text = 'Giliran Komputer (' + sideName(state.turn) + ')';
   st.textContent = text;
   st.className = 'status ' + cls;
@@ -1084,7 +1148,7 @@ function refreshMenu() {
       '</td><td>' + (s.best ? s.best.me + ' – ' + s.best.opp : '–') + '</td></tr>';
   });
   tb.innerHTML = html;
-  $('#resumeBtn').classList.toggle('hidden', !(state && !state.over));
+  $('#resumeBtn').classList.toggle('hidden', !(state && !state.over && state.mode !== 'online'));
   $('#menuSound').checked = settings.sound;
   $('#menuHints').checked = settings.hints;
   document.querySelectorAll('.seg button').forEach(function (b) {
@@ -1288,7 +1352,7 @@ function onCellClick(i) {
     if (state.board[i] === 0) { setNotice('Langkah tidak sah. Pilih kotak yang mengapit bidak lawan.', 'error'); updatePanel(); }
     return;
   }
-  playMove(i);
+  if (playMove(i) && state.mode === 'online') sendOnline({ t: 'move', i: i });
 }
 
 function finishGame() {
@@ -1296,11 +1360,11 @@ function finishGame() {
   const c = Engine.countPieces(state.board);
   const winner = Engine.getWinner(state.board);
   let result = 'draw';
-  if (state.mode === 'ai') {
+  if (state.mode !== 'two') {
     const me = state.humanColor === BLACK ? c.black : c.white;
     const opp = state.humanColor === BLACK ? c.white : c.black;
     result = winner === 0 ? 'draw' : winner === state.humanColor ? 'win' : 'loss';
-    recordResult(state.level, result, me, opp);
+    if (state.mode === 'ai') recordResult(state.level, result, me, opp);   // statistik hanya untuk lawan komputer
   }
   state.result = result;
   saveGame();                      // menghapus game tersimpan karena sudah selesai
@@ -1315,6 +1379,10 @@ function showResult(c, winner, result) {
     sub = result === 'win' ? 'Selamat, Anda mengalahkan komputer (' + LEVEL_NAMES[state.level] + ').'
       : result === 'loss' ? 'Komputer (' + LEVEL_NAMES[state.level] + ') menang kali ini. Coba lagi!' : 'Jumlah bidak sama.';
     if (result === 'win') Sound.win(); else if (result === 'loss') Sound.lose(); else Sound.draw();
+  } else if (state.mode === 'online') {
+    title = result === 'win' ? 'Anda Menang! 🎉' : result === 'loss' ? 'Anda Kalah' : 'Seri';
+    sub = result === 'win' ? 'Selamat, Anda mengalahkan lawan online.' : result === 'loss' ? 'Lawan menang kali ini. Ajak main lagi!' : 'Jumlah bidak sama.';
+    if (result === 'win') Sound.win(); else if (result === 'loss') Sound.lose(); else Sound.draw();
   } else {
     title = winner === 0 ? 'Seri' : sideName(winner) + ' Menang!';
     sub = winner === 0 ? 'Jumlah bidak sama.' : 'Selamat untuk pemain ' + sideName(winner) + '.';
@@ -1325,13 +1393,15 @@ function showResult(c, winner, result) {
   $('#resultScore').innerHTML =
     '<span><span class="chip black"></span>' + c.black + '</span><span style="opacity:.5">–</span><span><span class="chip white"></span>' + c.white + '</span>';
   $('#resultNote').textContent = 'Langkah: ' + state.moveCount + (c.empty ? ' · Kotak kosong: ' + c.empty : '');
-  $('#changeLevelBtn').textContent = state.mode === 'ai' ? 'Ganti Kesulitan' : 'Menu Utama';
+  $('#changeLevelBtn').textContent = state.mode === 'ai' ? 'Ganti Kesulitan' : state.mode === 'online' ? 'Keluar' : 'Menu Utama';
+  $('#againBtn').textContent = state.mode === 'online' ? 'Main Lagi (tukar warna)' : 'Main Lagi';
+  $('#againBtn').disabled = false;
   openModal('resultModal', '#againBtn');
 }
 
 /* ---------- Undo ---------- */
 function undoIndex() {
-  if (!state || !state.history.length) return -1;
+  if (!state || state.mode === 'online' || !state.history.length) return -1;
   if (state.mode === 'two') return state.history.length - 1;
   for (let i = state.history.length - 1; i >= 0; i--) if (state.history[i].player === state.humanColor) return i;
   return -1;
@@ -1357,6 +1427,7 @@ function undo() {
 
 /* ---------- Petunjuk ---------- */
 function showHint() {
+  if (state.mode === 'online') return;
   if (thinking || hinting || state.over || !isHumanTurn()) return;
   hinting = true;
   const token = ++hintToken;
@@ -1473,8 +1544,17 @@ $('#undoBtn').addEventListener('click', undo);
 $('#hintBtn').addEventListener('click', showHint);
 $('#rulesBtn').addEventListener('click', function () { openModal('rulesModal'); });
 $('#rulesBtnMenu').addEventListener('click', function () { openModal('rulesModal'); });
-$('#levelBtn').addEventListener('click', function () { showScreen('menu'); });
+$('#levelBtn').addEventListener('click', function () {
+  if (state && state.mode === 'online') {
+    const leave = function () { leaveOnline(); showScreen('menu'); };
+    if (state.over || !online.connected) leave();
+    else askConfirm('Keluar dari room?', 'Koneksi dengan lawan akan diputus dan permainan berakhir.', 'Ya, keluar', leave);
+    return;
+  }
+  showScreen('menu');
+});
 $('#newBtn').addEventListener('click', function () {
+  if (state.mode === 'online') { if (state.over) requestRematch(); return; }
   const restart = function () { startNewGame(state.mode, state.level); };
   if (state.over || state.moveCount === 0) restart();
   else askConfirm('Mulai game baru?', 'Permainan yang sedang berjalan akan dihapus.', 'Ya, mulai baru', restart);
@@ -1489,13 +1569,233 @@ $('#confirmOk').addEventListener('click', function () {
   closeModal('confirmModal');
   if (act) act();
 });
-$('#againBtn').addEventListener('click', function () { startNewGame(state.mode, state.level); });
-$('#changeLevelBtn').addEventListener('click', function () { closeAllModals(); showScreen('menu'); });
+$('#againBtn').addEventListener('click', function () { if (state.mode === 'online') requestRematch(); else startNewGame(state.mode, state.level); });
+$('#changeLevelBtn').addEventListener('click', function () { closeAllModals(); if (state.mode === 'online') leaveOnline(); showScreen('menu'); });
 document.querySelectorAll('[data-close]').forEach(function (b) {
   b.addEventListener('click', function () { closeModal(b.dataset.close); });
 });
 document.querySelectorAll('.backdrop').forEach(function (bd) {
   bd.addEventListener('click', function (e) { if (e.target === bd) closeModal(bd.id); });
+});
+
+/* ---------- Main Online: WebRTC data channel dengan pertukaran kode manual ---------- */
+const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+const online = { pc: null, dc: null, role: null, connected: false, hostColor: BLACK, rematchMine: false, rematchTheirs: false };
+
+function b64encode(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64decode(str) {
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  const bin = atob(str), out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function pipeBytes(bytes, transform) {
+  const stream = new Blob([bytes]).stream().pipeThrough(transform);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+// Kode = SDP (offer/answer) dipadatkan: "O2." (deflate) atau "O1." (teks biasa).
+async function encodeCode(desc) {
+  const bytes = new TextEncoder().encode(JSON.stringify({ t: desc.type, s: desc.sdp }));
+  if (window.CompressionStream) return 'O2.' + b64encode(await pipeBytes(bytes, new CompressionStream('deflate-raw')));
+  return 'O1.' + b64encode(bytes);
+}
+async function decodeCode(text) {
+  const m = /O([12])\.([A-Za-z0-9_-]+)/.exec(String(text).replace(/\s+/g, ''));
+  if (!m) throw new Error('Kode tidak valid. Salin ulang kodenya secara utuh.');
+  let bytes = b64decode(m[2]);
+  if (m[1] === '2') {
+    if (!window.DecompressionStream) throw new Error('Browser ini belum mendukung kode tersebut.');
+    bytes = await pipeBytes(bytes, new DecompressionStream('deflate-raw'));
+  }
+  const o = JSON.parse(new TextDecoder().decode(bytes));
+  if (!o || (o.t !== 'offer' && o.t !== 'answer') || typeof o.s !== 'string') throw new Error('Kode tidak valid.');
+  return { type: o.t, sdp: o.s };
+}
+function waitIce(pc) {
+  return new Promise(function (resolve) {
+    if (pc.iceGatheringState === 'complete') return resolve();
+    const done = function () {
+      if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', done); resolve(); }
+    };
+    pc.addEventListener('icegatheringstatechange', done);
+    setTimeout(resolve, 5000);
+  });
+}
+function olStatus(text, isErr) {
+  const el = $('#olStatus');
+  el.textContent = text || '';
+  el.classList.toggle('err', !!isErr);
+}
+function showOlView(name) {
+  $('#olChoose').classList.toggle('hidden', name !== 'choose');
+  $('#olHost').classList.toggle('hidden', name !== 'host');
+  $('#olGuest').classList.toggle('hidden', name !== 'guest');
+}
+function closeOnline() {
+  [online.dc, online.pc].forEach(function (o) {
+    if (!o) return;
+    o.onclose = o.onmessage = o.onopen = o.onconnectionstatechange = o.ondatachannel = null;
+    try { o.close(); } catch (e) { /* abaikan */ }
+  });
+  online.pc = online.dc = online.role = null;
+  online.connected = false;
+  online.rematchMine = online.rematchTheirs = false;
+}
+function newPeer() {
+  closeOnline();
+  const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+  online.pc = pc;
+  pc.onconnectionstatechange = function () {
+    if (pc.connectionState === 'failed' || pc.connectionState === 'closed') onOnlineLost();
+  };
+  return pc;
+}
+function wireChannel(dc) {
+  online.dc = dc;
+  dc.onopen = onChannelOpen;
+  dc.onclose = onOnlineLost;
+  dc.onmessage = function (e) { onOnlineMessage(e.data); };
+}
+function sendOnline(msg) {
+  try { if (online.dc && online.dc.readyState === 'open') online.dc.send(JSON.stringify(msg)); } catch (e) { /* abaikan */ }
+}
+async function hostCreate() {
+  showOlView('host'); olStatus('Membuat kode...');
+  $('#hostCode').value = ''; $('#hostAnswer').value = '';
+  try {
+    const pc = newPeer();
+    online.role = 'host';
+    online.hostColor = settings.humanColor;
+    wireChannel(pc.createDataChannel('othello'));
+    await pc.setLocalDescription(await pc.createOffer());
+    await waitIce(pc);
+    $('#hostCode').value = await encodeCode(pc.localDescription);
+    olStatus('Kirim kode ini ke teman, lalu tempel kode jawabannya di bawah.');
+  } catch (e) { olStatus('Gagal membuat kode: ' + e.message, true); }
+}
+async function hostConnect() {
+  try {
+    const desc = await decodeCode($('#hostAnswer').value);
+    if (desc.type !== 'answer') throw new Error('Itu bukan kode jawaban. Tempel kode jawaban dari teman.');
+    if (!online.pc) throw new Error('Room belum dibuat. Tekan Batal lalu Buat Room lagi.');
+    await online.pc.setRemoteDescription(desc);
+    olStatus('Menyambungkan...');
+  } catch (e) { olStatus(e.message, true); }
+}
+async function guestMake() {
+  try {
+    const desc = await decodeCode($('#guestOffer').value);
+    if (desc.type !== 'offer') throw new Error('Itu bukan kode room. Tempel kode dari pembuat room.');
+    olStatus('Membuat jawaban...');
+    const pc = newPeer();
+    online.role = 'guest';
+    pc.ondatachannel = function (e) { wireChannel(e.channel); };
+    await pc.setRemoteDescription(desc);
+    await pc.setLocalDescription(await pc.createAnswer());
+    await waitIce(pc);
+    $('#guestCode').value = await encodeCode(pc.localDescription);
+    olStatus('Kirim kode jawaban ini ke teman. Permainan mulai otomatis setelah tersambung.');
+  } catch (e) { olStatus(e.message, true); }
+}
+function copyText(id) {
+  const el = $(id);
+  if (!el.value) return;
+  el.focus(); el.select();
+  const ok = function () { toast('Kode disalin', 1400); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(el.value).then(ok, function () { try { document.execCommand('copy'); ok(); } catch (e) { /* abaikan */ } });
+  else { try { document.execCommand('copy'); ok(); } catch (e) { /* abaikan */ } }
+}
+function onChannelOpen() {
+  online.connected = true;
+  if (online.role === 'host') {
+    sendOnline({ t: 'start', c: online.hostColor });
+    startOnlineGame(online.hostColor);
+  }
+}
+function startOnlineGame(color) {
+  abortSearches();
+  clearTimeout(resultTimer);
+  closeAllModals();
+  state = newGameState('online', '', color);
+  online.rematchMine = online.rematchTheirs = false;
+  showScreen('game');
+  clearBoardDom();
+  focusIdx = 19;
+  syncFocus();
+  render();
+  toast('Tersambung! Anda bermain sebagai ' + sideName(color), 2600);
+}
+function onOnlineMessage(raw) {
+  let m;
+  try { m = JSON.parse(raw); } catch (e) { return; }
+  if (!m || typeof m.t !== 'string') return;
+  if (m.t === 'start' && online.role === 'guest' && (m.c === BLACK || m.c === WHITE)) {
+    startOnlineGame(-m.c);
+  } else if (m.t === 'move') {
+    if (!state || state.mode !== 'online' || state.over || state.turn === state.humanColor) return;
+    if (validMoveFor(state.board, state.turn, m.i)) playMove(m.i);
+  } else if (m.t === 'rematch') {
+    online.rematchTheirs = true;
+    if (online.rematchMine) doRematch();
+    else if (state && state.over) toast('Lawan mengajak main lagi — tekan "Main Lagi"', 3000);
+  } else if (m.t === 'leave') {
+    onOnlineLost();
+  }
+}
+function requestRematch() {
+  if (!online.connected) { toast('Koneksi terputus', 1800); return; }
+  online.rematchMine = true;
+  sendOnline({ t: 'rematch' });
+  if (online.rematchTheirs) { doRematch(); return; }
+  $('#againBtn').disabled = true;
+  closeModal('resultModal');
+  setNotice('Menunggu lawan setuju main lagi...');
+  updatePanel();
+}
+function doRematch() {
+  online.rematchMine = online.rematchTheirs = false;
+  startOnlineGame(-state.humanColor);
+}
+function onOnlineLost() {
+  const wasConnected = online.connected;
+  online.connected = false;
+  if (state && state.mode === 'online') {
+    if (!state.over) setNotice('Koneksi terputus. Lawan keluar atau jaringan putus.', 'error');
+    render();
+    if (wasConnected) toast('Koneksi dengan lawan terputus', 2600);
+  } else if (!$('#onlineModal').classList.contains('hidden')) {
+    olStatus('Koneksi gagal. Periksa jaringan lalu coba lagi dengan kode baru.', true);
+  }
+}
+function leaveOnline() {
+  sendOnline({ t: 'leave' });
+  closeOnline();
+  if (state && state.mode === 'online') state = null;
+}
+function openOnlineModal() {
+  closeOnline();
+  $('#olColor').textContent = sideName(settings.humanColor);
+  showOlView('choose'); olStatus('');
+  openModal('onlineModal', '#olHostBtn');
+}
+$('#onlineBtn').addEventListener('click', function () {
+  if (!window.RTCPeerConnection) { toast('Browser ini tidak mendukung mode online', 2600); return; }
+  openOnlineModal();
+});
+$('#olHostBtn').addEventListener('click', hostCreate);
+$('#olJoinBtn').addEventListener('click', function () { closeOnline(); showOlView('guest'); olStatus(''); $('#guestOffer').value = ''; $('#guestCode').value = ''; });
+$('#hostConnect').addEventListener('click', hostConnect);
+$('#guestMake').addEventListener('click', guestMake);
+$('#copyHost').addEventListener('click', function () { copyText('#hostCode'); });
+$('#copyGuest').addEventListener('click', function () { copyText('#guestCode'); });
+$('#olCancel').addEventListener('click', function () {
+  if (!online.connected) closeOnline();
+  closeModal('onlineModal');
 });
 
 /* ---------- Inisialisasi ---------- */
