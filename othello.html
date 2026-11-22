@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Othello (Reversi)</title>
+<style>
+/* =====================================================================
+   GAYA TAMPILAN
+   ===================================================================== */
+:root{
+  --bg1:#0e1814; --bg2:#1c3228;
+  --panel:#1b2b24; --panel2:#243a31; --line:rgba(255,255,255,.09);
+  --text:#eef4f0; --muted:#9bb2a6;
+  --accent:#f0b429; --accent-ink:#2a1d00;
+  --easy:#4fbf7a; --medium:#f0b429; --hard:#ef6a5e;
+  --board-a:#1f7d4b; --board-b:#145d36; --board-edge:#0b3a22;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  background:radial-gradient(1200px 700px at 50% -10%,var(--bg2),var(--bg1)) fixed;
+  background-color:var(--bg1);
+  color:var(--text);min-height:100vh;min-height:100dvh;
+  -webkit-text-size-adjust:100%;
+}
+button{font:inherit;color:inherit;touch-action:manipulation}
+.hidden{display:none !important}
+.screen{max-width:1100px;margin:0 auto;padding:12px 16px 28px}
+
+/* ---------- Tombol umum ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.4em;
+  min-height:46px;padding:8px 14px;border-radius:12px;border:1px solid var(--line);
+  background:var(--panel2);cursor:pointer;font-weight:600;font-size:.95rem;
+  transition:transform .08s,background .15s,opacity .15s;
+}
+.btn:hover:not(:disabled){background:#2e4a3e}
+.btn:active:not(:disabled){transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.btn.primary:hover:not(:disabled){background:#ffc84a}
+.btn.danger{background:transparent;border-color:rgba(239,106,94,.5);color:#ffb3ab}
+.btn.wide{width:100%}
+:focus-visible{outline:3px solid #ffd34d;outline-offset:2px}
+
+/* ---------- Menu awal ---------- */
+.menu-card{max-width:600px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.logo{display:flex;justify-content:center;gap:0;margin-top:6px}
+.logo i{width:46px;height:46px;border-radius:50%;margin:0 -4px;box-shadow:0 5px 10px rgba(0,0,0,.5)}
+.logo i:nth-child(odd){background:radial-gradient(circle at 32% 28%,#666,#111 60%)}
+.logo i:nth-child(even){background:radial-gradient(circle at 32% 28%,#fff,#d4d4d4 60%,#999)}
+h1{margin:0;text-align:center;font-size:2.4rem;letter-spacing:.18em;font-weight:800}
+.tagline{margin:-8px 0 0;text-align:center;color:var(--muted)}
+h2{margin:6px 0 0;font-size:1rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.level-grid{display:grid;gap:10px}
+.level-btn{
+  text-align:left;display:grid;gap:3px;padding:14px 16px 14px 20px;border-radius:14px;cursor:pointer;
+  background:var(--panel);border:1px solid var(--line);position:relative;overflow:hidden;min-height:78px;
+  transition:transform .1s,background .15s;
+}
+.level-btn::before{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;background:var(--c)}
+.level-btn:hover{background:var(--panel2)}
+.level-btn:active{transform:scale(.985)}
+.level-btn[data-level=easy]{--c:var(--easy)}
+.level-btn[data-level=medium]{--c:var(--medium)}
+.level-btn[data-level=hard]{--c:var(--hard)}
+.lv-name{font-size:1.35rem;font-weight:800;letter-spacing:.06em;color:var(--c)}
+.lv-desc{font-size:.88rem;color:var(--muted);line-height:1.35}
+.lv-stat{font-size:.8rem;color:var(--text);opacity:.85;font-variant-numeric:tabular-nums}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{border:0;background:var(--panel);padding:10px 14px;min-height:46px;cursor:pointer;font-weight:600}
+.seg button[aria-checked=true]{background:var(--accent);color:var(--accent-ink)}
+.switch{display:inline-flex;align-items:center;gap:8px;min-height:44px;cursor:pointer;user-select:none;font-size:.95rem}
+.switch input{width:22px;height:22px;accent-color:var(--accent)}
+table.stats{width:100%;border-collapse:collapse;font-size:.9rem;background:var(--panel);border-radius:12px;overflow:hidden}
+.stats th,.stats td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line)}
+.stats th{color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase}
+.stats tr:last-child td{border-bottom:0}
+.stats td:first-child{text-align:left;padding-left:12px;font-weight:700}
+.menu-foot{display:flex;flex-wrap:wrap;gap:10px}
+.menu-foot .btn{flex:1 1 150px}
+
+/* ---------- Layar permainan ---------- */
+.game-layout{
+  --bsize:clamp(260px,min(calc(100vw - 32px),calc(100dvh - 310px)),640px);
+  display:grid;gap:10px;justify-items:stretch;
+  grid-template-columns:minmax(0,1fr);
+  grid-template-areas:"scores" "board" "info" "actions" "toggles";
+}
+.scores{grid-area:scores;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.score-card{
+  display:flex;align-items:center;gap:10px;background:var(--panel);
+  border:2px solid transparent;border-radius:14px;padding:8px 12px;transition:border-color .2s,box-shadow .2s;min-width:0;
+}
+.score-card.active{border-color:var(--accent);box-shadow:0 0 0 4px rgba(240,180,41,.16)}
+.chip{width:34px;height:34px;border-radius:50%;flex:none;box-shadow:0 2px 5px rgba(0,0,0,.5)}
+.chip.black{background:radial-gradient(circle at 32% 28%,#666,#111 60%)}
+.chip.white{background:radial-gradient(circle at 32% 28%,#fff,#d0d0d0 60%,#9a9a9a)}
+.who{font-size:.78rem;color:var(--muted);line-height:1.2}
+.count{font-size:1.75rem;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.board-col{grid-area:board;justify-self:center;width:var(--bsize);max-width:100%}
+.status{
+  min-height:2.6em;display:flex;align-items:center;justify-content:center;text-align:center;
+  font-size:.95rem;font-weight:600;padding:4px 8px;margin-bottom:4px;border-radius:10px;line-height:1.3;
+}
+.status.notice{background:rgba(240,180,41,.16);color:#ffe29a}
+.status.error{background:rgba(239,106,94,.18);color:#ffc0b9}
+.board-frame{display:grid;grid-template-columns:1.2rem minmax(0,1fr);grid-template-rows:1.2rem auto}
+.coords{display:grid;color:var(--muted);font-size:.7rem;font-weight:600}
+.coords.top{grid-column:2;grid-template-columns:repeat(8,1fr);text-align:center;align-items:center}
+.coords.left{grid-row:2;grid-template-rows:repeat(8,1fr);align-items:center;justify-items:center}
+#board{
+  grid-column:2;grid-row:2;aspect-ratio:1/1;display:grid;grid-template-rows:repeat(8,1fr);
+  background:linear-gradient(135deg,var(--board-a),var(--board-b));
+  border:4px solid var(--board-edge);border-radius:8px;overflow:hidden;
+  box-shadow:0 10px 30px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.06);
+  user-select:none;-webkit-user-select:none;
+}
+.board-row{display:grid;grid-template-columns:repeat(8,1fr)}
+.cell{
+  position:relative;padding:0;margin:0;border:0;border-radius:0;background:transparent;cursor:default;
+  box-shadow:inset 0 0 0 .5px rgba(0,0,0,.55);perspective:420px;min-width:0;min-height:0;
+}
+.cell.valid{cursor:pointer}
+@media (hover:hover){.cell.valid:hover{background:rgba(255,255,255,.1)}}
+.cell:focus-visible{outline:3px solid #ffd34d;outline-offset:-3px;z-index:3}
+.cell.valid::after{
+  content:"";position:absolute;left:50%;top:50%;width:24%;height:24%;transform:translate(-50%,-50%);
+  border-radius:50%;background:rgba(0,0,0,.32);pointer-events:none;
+}
+#board[data-turn=w] .cell.valid::after{background:rgba(255,255,255,.42)}
+.cell.last::before{
+  content:"";position:absolute;left:50%;top:50%;width:17%;height:17%;transform:translate(-50%,-50%);
+  border-radius:50%;background:#ff6a4d;box-shadow:0 0 0 2px rgba(0,0,0,.35);z-index:4;pointer-events:none;
+}
+.cell.best{animation:glow 1s ease-in-out infinite;z-index:2}
+.cell.shake{animation:shake .3s}
+.disc-wrap{position:absolute;inset:10%;transform-style:preserve-3d;pointer-events:none}
+.disc-wrap.pop{animation:pop .38s cubic-bezier(.2,.9,.3,1.3)}
+.disc-wrap.flipping{animation:lift .56s ease-in-out;animation-delay:var(--d,0ms)}
+.disc{
+  position:absolute;inset:0;transform-style:preserve-3d;transform:rotateY(0deg);
+  transition:transform .56s cubic-bezier(.35,.1,.3,1);transition-delay:var(--d,0ms);
+}
+.disc[data-c=w]{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:50%;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.face.fb{
+  background:radial-gradient(circle at 33% 28%,#6a6a6a 0%,#2a2a2a 38%,#050505 100%);
+  box-shadow:0 3px 6px rgba(0,0,0,.6),inset 0 -3px 5px rgba(255,255,255,.07),inset 0 2px 3px rgba(255,255,255,.12);
+}
+.face.fw{
+  transform:rotateY(180deg);
+  background:radial-gradient(circle at 33% 28%,#ffffff 0%,#ececec 40%,#a9a9a9 100%);
+  box-shadow:0 3px 6px rgba(0,0,0,.55),inset 0 -3px 5px rgba(0,0,0,.18),inset 0 2px 3px rgba(255,255,255,.9);
+}
+@keyframes pop{0%{transform:scale(.2);opacity:0}60%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
+@keyframes lift{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+@keyframes glow{0%,100%{box-shadow:inset 0 0 0 3px rgba(255,211,77,.95),inset 0 0 14px rgba(255,211,77,.7)}50%{box-shadow:inset 0 0 0 3px rgba(255,211,77,.35),inset 0 0 4px rgba(255,211,77,.25)}}
+.thinking{min-height:30px;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px;color:var(--muted);font-size:.9rem;visibility:hidden}
+.thinking.on{visibility:visible}
+.spinner{width:16px;height:16px;border-radius:50%;border:3px solid rgba(255,255,255,.2);border-top-color:var(--accent);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.info{
+  grid-area:info;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0;
+}
+.info div{background:var(--panel);border-radius:12px;padding:7px 10px;min-width:0}
+.info dt{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.info dd{margin:2px 0 0;font-weight:700;font-size:.95rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.actions{grid-area:actions;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.actions .btn{padding:8px 6px;font-size:.88rem;min-height:48px;text-align:center;line-height:1.15}
+.toggles{grid-area:toggles;display:flex;justify-content:center}
+
+@media (min-aspect-ratio:5/4) and (min-width:640px){
+  .game-layout{
+    --bsize:clamp(260px,min(calc(100vw - 400px),calc(100dvh - 60px)),680px);
+    grid-template-columns:var(--bsize) minmax(260px,340px);justify-content:center;column-gap:24px;align-content:start;
+    grid-template-areas:"board scores" "board info" "board actions" "board toggles";
+    grid-template-rows:auto auto auto 1fr;
+  }
+  .toggles{justify-content:flex-start}
+  .screen{padding-top:18px}
+}
+@media (max-width:420px){
+  .actions .btn{font-size:.8rem}
+  .count{font-size:1.5rem}
+  h1{font-size:2rem}
+}
+
+/* ---------- Modal & toast ---------- */
+.backdrop{
+  position:fixed;inset:0;background:rgba(3,10,7,.72);display:flex;align-items:center;justify-content:center;
+  padding:16px;z-index:50;overflow:auto;
+}
+.modal{
+  background:var(--panel);border:1px solid var(--line);border-radius:18px;max-width:520px;width:100%;
+  max-height:calc(100dvh - 32px);overflow:auto;padding:20px 20px 16px;box-shadow:0 20px 60px rgba(0,0,0,.6);
+  animation:pop .25s ease-out;
+}
+.modal h3{margin:0 0 8px;font-size:1.4rem}
+.modal p,.modal li{line-height:1.5;color:#d8e4dd;font-size:.95rem}
+.modal ul,.modal ol{padding-left:1.2em;margin:6px 0 10px}
+.modal-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.modal-actions .btn{flex:1 1 140px}
+.result-title{font-size:2rem;text-align:center;margin:4px 0}
+.result-score{display:flex;justify-content:center;align-items:center;gap:18px;margin:10px 0 4px;font-weight:800;font-size:2.2rem}
+.result-score .chip{width:30px;height:30px;display:inline-block;vertical-align:middle;margin-right:8px}
+.result-sub{text-align:center;color:var(--muted)}
+#toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(30px);opacity:0;pointer-events:none;
+  background:#fff3cf;color:#3b2a00;padding:12px 18px;border-radius:14px;font-weight:700;z-index:60;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);transition:opacity .25s,transform .25s;max-width:min(92vw,520px);text-align:center;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion:reduce){
+  .disc{transition-duration:.01s}
+  .disc-wrap.flipping,.disc-wrap.pop,.cell.best,.modal{animation:none}
+}
+</style>
+</head>
+<body>
+
+<main>
+  <!-- ===================== MENU AWAL ===================== -->
+  <section id="menuScreen" class="screen" aria-labelledby="menuTitle">
+    <div class="menu-card">
+      <div class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <h1 id="menuTitle">OTHELLO</h1>
+      <p class="tagline">Reversi klasik melawan komputer</p>
+
+      <button id="resumeBtn" class="btn primary wide hidden" type="button">▶ Lanjutkan Game</button>
+
+      <h2>Pilih Tingkat Kesulitan</h2>
+      <div class="level-grid">
+        <button class="level-btn" type="button" data-level="easy">
+          <span class="lv-name">MUDAH</span>
+          <span class="lv-desc">Komputer memilih langkah acak, sesekali mengambil sudut. Cocok untuk pemula.</span>
+          <span class="lv-stat" id="lvStat-easy"></span>
+        </button>
+        <button class="level-btn" type="button" data-level="medium">
+          <span class="lv-name">SEDANG</span>
+          <span class="lv-desc">Berpikir 3 langkah ke depan (Minimax + Alpha-Beta) dengan penilaian posisi.</span>
+          <span class="lv-stat" id="lvStat-medium"></span>
+        </button>
+        <button class="level-btn" type="button" data-level="hard">
+          <span class="lv-name">SULIT</span>
+          <span class="lv-desc">Pencarian mendalam dengan mobilitas, stabilitas, dan solusi sempurna di akhir permainan.</span>
+          <span class="lv-stat" id="lvStat-hard"></span>
+        </button>
+      </div>
+
+      <div class="row">
+        <span id="colorLabel" style="font-weight:600">Warna Anda:</span>
+        <div class="seg" role="radiogroup" aria-labelledby="colorLabel">
+          <button type="button" role="radio" aria-checked="true" data-color="1">Hitam (jalan duluan)</button>
+          <button type="button" role="radio" aria-checked="false" data-color="-1">Putih</button>
+        </div>
+      </div>
+
+      <button id="twoPlayerBtn" class="btn wide" type="button">👥 Mode 2 Pemain (bergantian di perangkat ini)</button>
+
+      <div class="row">
+        <label class="switch"><input type="checkbox" id="menuSound"> Suara</label>
+        <label class="switch"><input type="checkbox" id="menuHints"> Tampilkan petunjuk</label>
+      </div>
+
+      <h2>Statistik</h2>
+      <table class="stats" id="statsTable" aria-label="Statistik permainan per tingkat kesulitan"></table>
+
+      <div class="menu-foot">
+        <button id="rulesBtnMenu" class="btn" type="button">📖 Aturan Main</button>
+        <button id="resetStatsBtn" class="btn danger" type="button">Reset Statistik</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== LAYAR PERMAINAN ===================== -->
+  <section id="gameScreen" class="screen hidden" aria-label="Permainan Othello">
+    <div class="game-layout">
+      <div class="scores" aria-label="Skor">
+        <div class="score-card" id="cardBlack">
+          <span class="chip black" aria-hidden="true"></span>
+          <div><div class="who" id="nameBlack">Hitam</div><div class="count" id="scoreBlack" aria-label="Skor Hitam">2</div></div>
+        </div>
+        <div class="score-card" id="cardWhite">
+          <span class="chip white" aria-hidden="true"></span>
+          <div><div class="who" id="nameWhite">Putih</div><div class="count" id="scoreWhite" aria-label="Skor Putih">2</div></div>
+        </div>
+      </div>
+
+      <div class="board-col">
+        <div class="status" id="statusLine" role="status" aria-live="polite"></div>
+        <div class="board-frame">
+          <div class="coords top" id="coordsTop" aria-hidden="true"></div>
+          <div class="coords left" id="coordsLeft" aria-hidden="true"></div>
+          <div id="board" role="grid" aria-label="Papan Othello 8 kali 8. Gunakan tombol panah untuk berpindah kotak dan Enter untuk memilih."></div>
+        </div>
+        <div class="thinking" id="thinking" aria-hidden="true"><span class="spinner"></span><span id="thinkingText">Komputer sedang berpikir...</span></div>
+      </div>
+
+      <dl class="info">
+        <div><dt>Giliran</dt><dd id="infoTurn">-</dd></div>
+        <div><dt>Tingkat</dt><dd id="infoLevel">-</dd></div>
+        <div><dt>Langkah</dt><dd id="infoMoves">0</dd></div>
+      </dl>
+
+      <div class="actions">
+        <button id="undoBtn" class="btn" type="button">↶ Undo</button>
+        <button id="hintBtn" class="btn" type="button">💡 Petunjuk</button>
+        <button id="newBtn" class="btn" type="button">🔄 Game Baru</button>
+        <button id="levelBtn" class="btn" type="button">⚙ Ganti Kesulitan</button>
+        <button id="rulesBtn" class="btn" type="button">📖 Aturan Main</button>
+        <button id="soundBtn" class="btn" type="button" aria-pressed="true">🔊 Suara</button>
+      </div>
+      <div class="toggles">
+        <label class="switch"><input type="checkbox" id="hintsToggle"> Tampilkan petunjuk langkah sah</label>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="toast" aria-hidden="true"></div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="backdrop hidden" id="rulesModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+    <h3 id="rulesTitle">Aturan Main Othello</h3>
+    <ul>
+      <li>Papan 8×8. Permainan dimulai dengan 4 bidak di tengah: d4 &amp; e5 putih, d5 &amp; e4 hitam.</li>
+      <li><b>Hitam selalu jalan lebih dulu</b>, lalu bergantian.</li>
+      <li>Langkah sah: letakkan bidak di kotak kosong yang <b>mengapit</b> satu baris atau lebih bidak lawan (mendatar, tegak, atau diagonal) dengan bidak Anda di ujung seberangnya. Semua bidak lawan yang terapit <b>dibalik</b> menjadi warna Anda.</li>
+      <li>Jika Anda tidak punya langkah sah, giliran otomatis <b>dilewati (PASS)</b>.</li>
+      <li>Permainan selesai saat papan penuh atau kedua pemain tidak punya langkah. Pemenang adalah yang bidaknya <b>terbanyak</b>.</li>
+    </ul>
+    <p><b>Tips:</b> rebut sudut (tidak bisa dibalik), hindari kotak di sebelah sudut selagi sudutnya kosong, dan usahakan lawan kehabisan pilihan langkah.</p>
+    <p><b>Keyboard:</b> tombol panah memindahkan fokus di papan, Enter atau Spasi memilih kotak, Esc menutup jendela ini.</p>
+    <div class="modal-actions"><button class="btn primary" type="button" data-close="rulesModal">Mengerti</button></div>
+  </div>
+</div>
+
+<div class="backdrop hidden" id="resultModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+    <h3 class="result-title" id="resultTitle"></h3>
+    <p class="result-sub" id="resultSub"></p>
+    <div class="result-score" id="resultScore"></div>
+    <p class="result-sub" id="resultNote"></p>
+    <div class="modal-actions">
+      <button class="btn primary" id="againBtn" type="button">Main Lagi</button>
+      <button class="btn" id="changeLevelBtn" type="button">Ganti Kesulitan</button>
+      <button class="btn" type="button" data-close="resultModal">Lihat Papan</button>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop hidden" id="confirmModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <h3 id="confirmTitle"></h3>
+    <p id="confirmText"></p>
+    <div class="modal-actions">
+      <button class="btn danger" id="confirmOk" type="button">Ya</button>
+      <button class="btn primary" type="button" data-close="confirmModal">Batal</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   BAGIAN 1-3: MESIN GAME (konstanta, logika, AI)
+   Dibungkus dalam fungsi supaya kodenya bisa dipakai ulang di Web Worker
+   (Worker dibuat dari Blob memakai createEngine.toString()).
+   ===================================================================== */
+function createEngine() {
+  'use strict';
+
+  /* ---------------------------------------------------------------
+     1. KONSTANTA & TABEL BOBOT
+     --------------------------------------------------------------- */
+  const EMPTY = 0, BLACK = 1, WHITE = -1;
+  const SIZE = 8, CELLS = 64;
+  const INF = 1e9;
+  const TIMEOUT = { timeout: true };
+  const ENDGAME_EMPTIES = 10;          // sisa kotak kosong untuk solver sempurna (HARD)
+  const DIRECTIONS = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+  const CORNERS = [0, 7, 56, 63];
+
+  // Tabel bobot posisi: sudut sangat bernilai, kotak di sebelah sudut negatif, tepi sedang.
+  const POSITION_WEIGHTS = [
+    120, -30,  20,   5,   5,  20, -30, 120,
+    -30, -60,  -4,  -4,  -4,  -4, -60, -30,
+     20,  -4,   3,   2,   2,   3,  -4,  20,
+      5,  -4,   2,   1,   1,   2,  -4,   5,
+      5,  -4,   2,   1,   1,   2,  -4,   5,
+     20,  -4,   3,   2,   2,   3,  -4,  20,
+    -30, -60,  -4,  -4,  -4,  -4, -60, -30,
+    120, -30,  20,   5,   5,  20, -30, 120
+  ];
+
+  // Kotak C/X dan sudut yang bersangkutan (bobot negatif dinetralkan setelah sudut terisi).
+  const CORNER_OF = new Int8Array(CELLS).fill(-1);
+  [[0,[1,8,9]],[7,[6,15,14]],[56,[48,57,49]],[63,[62,55,54]]].forEach(function (e) {
+    e[1].forEach(function (i) { CORNER_OF[i] = e[0]; });
+  });
+
+  // Jalur tepi dari tiap sudut (untuk menghitung bidak stabil di tepi).
+  const CORNER_EDGES = [
+    [0,  [1,2,3,4,5,6,7],       [8,16,24,32,40,48,56]],
+    [7,  [6,5,4,3,2,1,0],       [15,23,31,39,47,55,63]],
+    [56, [57,58,59,60,61,62,63],[48,40,32,24,16,8,0]],
+    [63, [62,61,60,59,58,57,56],[55,47,39,31,23,15,7]]
+  ];
+
+  // Jalur pandang dari tiap kotak ke 8 arah (hanya yang panjangnya >= 2) dan tetangga.
+  const RAYS = [];
+  const NEIGHBORS = [];
+  for (let i = 0; i < CELLS; i++) {
+    const r = Math.floor(i / SIZE), c = i % SIZE;
+    const rays = [], nb = [];
+    for (let d = 0; d < 8; d++) {
+      const ray = [];
+      let rr = r + DIRECTIONS[d][0], cc = c + DIRECTIONS[d][1];
+      if (rr >= 0 && rr < SIZE && cc >= 0 && cc < SIZE) nb.push(rr * SIZE + cc);
+      while (rr >= 0 && rr < SIZE && cc >= 0 && cc < SIZE) {
+        ray.push(rr * SIZE + cc);
+        rr += DIRECTIONS[d][0]; cc += DIRECTIONS[d][1];
+      }
+      if (ray.length >= 2) rays.push(ray);
+    }
+    RAYS.push(rays); NEIGHBORS.push(nb);
+  }
+
+  /* ---------------------------------------------------------------
+     2. LOGIKA GAME (fungsi murni)
+     Papan = Int8Array(64): 0 kosong, 1 hitam, -1 putih. Indeks = baris*8 + kolom.
+     --------------------------------------------------------------- */
+  function createInitialBoard() {
+    const b = new Int8Array(CELLS);
+    b[27] = WHITE; b[36] = WHITE;   // d4, e5 putih
+    b[35] = BLACK; b[28] = BLACK;   // d5, e4 hitam
+    return b;
+  }
+
+  // Daftar indeks bidak lawan yang terbalik bila `player` menaruh bidak di `idx`.
+  function getFlips(board, idx, player) {
+    const out = [];
+    if (board[idx] !== EMPTY) return out;
+    const rays = RAYS[idx], opp = -player;
+    for (let r = 0; r < rays.length; r++) {
+      const ray = rays[r];
+      let k = 0;
+      while (k < ray.length && board[ray[k]] === opp) k++;
+      if (k > 0 && k < ray.length && board[ray[k]] === player) {
+        for (let j = 0; j < k; j++) out.push(ray[j]);
+      }
+    }
+    return out;
+  }
+
+  function isLegalMove(board, idx, player) {
+    if (board[idx] !== EMPTY) return false;
+    const rays = RAYS[idx], opp = -player;
+    for (let r = 0; r < rays.length; r++) {
+      const ray = rays[r];
+      let k = 0;
+      while (k < ray.length && board[ray[k]] === opp) k++;
+      if (k > 0 && k < ray.length && board[ray[k]] === player) return true;
+    }
+    return false;
+  }
+
+  function getValidMoves(board, player) {
+    const moves = [];
+    for (let i = 0; i < CELLS; i++) {
+      if (board[i] !== EMPTY) continue;
+      const flips = getFlips(board, i, player);
+      if (flips.length) moves.push({ index: i, flips: flips });
+    }
+    return moves;
+  }
+
+  function countMoves(board, player) {
+    let n = 0;
+    for (let i = 0; i < CELLS; i++) if (board[i] === EMPTY && isLegalMove(board, i, player)) n++;
+    return n;
+  }
+
+  function hasValidMove(board, player) {
+    for (let i = 0; i < CELLS; i++) if (board[i] === EMPTY && isLegalMove(board, i, player)) return true;
+    return false;
+  }
+
+  // Mengembalikan { board, flips } (papan baru) atau null bila langkah tidak sah.
+  function applyMove(board, idx, player) {
+    const flips = getFlips(board, idx, player);
+    if (!flips.length) return null;
+    const nb = board.slice();
+    nb[idx] = player;
+    for (let i = 0; i < flips.length; i++) nb[flips[i]] = player;
+    return { board: nb, flips: flips };
+  }
+
+  function countPieces(board) {
+    let black = 0, white = 0;
+    for (let i = 0; i < CELLS; i++) { if (board[i] === BLACK) black++; else if (board[i] === WHITE) white++; }
+    return { black: black, white: white, empty: CELLS - black - white };
+  }
+
+  function isGameOver(board) {
+    return !hasValidMove(board, BLACK) && !hasValidMove(board, WHITE);
+  }
+
+  // Pemenang: BLACK, WHITE, atau 0 (seri).
+  function getWinner(board) {
+    const c = countPieces(board);
+    return c.black > c.white ? BLACK : c.white > c.black ? WHITE : 0;
+  }
+
+  // Menentukan giliran setelah `mover` melangkah.
+  // passed = warna yang dilewati gilirannya (atau 0); over = permainan selesai.
+  function getNextTurn(board, mover) {
+    const opp = -mover;
+    if (hasValidMove(board, opp)) return { turn: opp, passed: 0, over: false };
+    if (hasValidMove(board, mover)) return { turn: mover, passed: opp, over: false };
+    return { turn: opp, passed: 0, over: true };
+  }
+
+  /* ---------------------------------------------------------------
+     3. AI (acak, evaluasi, minimax/negamax + alpha-beta, iterative deepening, endgame solver)
+     Pencarian memakai papan yang diubah langsung (make/undo) agar cepat.
+     --------------------------------------------------------------- */
+  function make(b, idx, p, flips) {
+    b[idx] = p;
+    for (let i = 0; i < flips.length; i++) b[flips[i]] = p;
+  }
+  function unmake(b, idx, p, flips) {
+    b[idx] = EMPTY;
+    for (let i = 0; i < flips.length; i++) b[flips[i]] = -p;
+  }
+  function countEmpty(b) {
+    let n = 0;
+    for (let i = 0; i < CELLS; i++) if (b[i] === EMPTY) n++;
+    return n;
+  }
+  function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function byWeight(a, b) { return POSITION_WEIGHTS[b.index] - POSITION_WEIGHTS[a.index]; }
+
+  /* --- Evaluasi (selalu dari sudut pandang pemain `p`) --- */
+
+  // MEDIUM: tabel bobot posisi + selisih jumlah bidak.
+  function evaluateMedium(b, p) {
+    let pos = 0, diff = 0;
+    for (let i = 0; i < CELLS; i++) {
+      const v = b[i];
+      if (v === EMPTY) continue;
+      if (v === p) { pos += POSITION_WEIGHTS[i]; diff++; }
+      else { pos -= POSITION_WEIGHTS[i]; diff--; }
+    }
+    return pos + diff + Math.random() * 1.5; // sedikit variasi agar tidak selalu sama
+  }
+
+  // Bidak stabil sederhana: sudut + deretan bidak tepi yang menyambung dari sudut.
+  const seen = new Int32Array(CELLS);
+  let seenStamp = 0;
+  function countStable(b, p) {
+    seenStamp++;
+    let n = 0;
+    for (let e = 0; e < 4; e++) {
+      const corner = CORNER_EDGES[e][0];
+      if (b[corner] !== p) continue;
+      if (seen[corner] !== seenStamp) { seen[corner] = seenStamp; n++; }
+      for (let l = 1; l <= 2; l++) {
+        const line = CORNER_EDGES[e][l];
+        for (let k = 0; k < line.length && b[line[k]] === p; k++) {
+          if (seen[line[k]] !== seenStamp) { seen[line[k]] = seenStamp; n++; }
+        }
+      }
+    }
+    return n;
+  }
+
+  // HARD: posisi dinamis + mobility + stabilitas + potential mobility + parity + selisih bidak.
+  function evaluateHard(b, p) {
+    let empties = 0, pos = 0, diff = 0;
+    for (let i = 0; i < CELLS; i++) {
+      const v = b[i];
+      if (v === EMPTY) { empties++; continue; }
+      let w = POSITION_WEIGHTS[i];
+      const c = CORNER_OF[i];
+      if (c >= 0 && b[c] !== EMPTY) w = 3;      // sudut sudah terisi: kotak sebelahnya tidak lagi berbahaya
+      if (v === p) { pos += w; diff++; } else { pos -= w; diff--; }
+    }
+    const m1 = countMoves(b, p), m2 = countMoves(b, -p);
+    const mobility = (m1 + m2) ? 100 * (m1 - m2) / (m1 + m2) : 0;
+
+    let pot1 = 0, pot2 = 0;   // potential mobility: kotak kosong yang menempel pada bidak lawan/sendiri
+    for (let i = 0; i < CELLS; i++) {
+      if (b[i] !== EMPTY) continue;
+      const nb = NEIGHBORS[i];
+      let nearOpp = false, nearMe = false;
+      for (let k = 0; k < nb.length; k++) {
+        const v = b[nb[k]];
+        if (v === -p) nearOpp = true; else if (v === p) nearMe = true;
+      }
+      if (nearOpp) pot1++;
+      if (nearMe) pot2++;
+    }
+    const stability = countStable(b, p) - countStable(b, -p);
+    const parity = empties <= 16 ? ((empties & 1) ? 1 : -1) : 0; // p yang jalan: sisa ganjil menguntungkan
+
+    const posW = empties > 20 ? 1 : 0.5;
+    const mobW = empties > 40 ? 0.7 : empties > 16 ? 0.55 : 0.3;
+    const potW = empties > 16 ? 2 : 0.6;
+    const discW = empties > 30 ? 0 : empties > 16 ? 0.6 : 3;
+    return pos * posW + mobility * mobW + (pot1 - pot2) * potW + stability * 14 + parity * 8 + diff * discW;
+  }
+
+  /* --- Pencarian negamax dengan alpha-beta --- */
+  function negamax(b, p, depth, alpha, beta, passed, ctx) {
+    ctx.nodes++;
+    if ((ctx.nodes & 1023) === 0 && Date.now() > ctx.deadline) throw TIMEOUT;
+    if (depth === 0) return ctx.evalFn(b, p);
+    const moves = getValidMoves(b, p);
+    if (!moves.length) {
+      if (passed) {                               // dua kali pass: permainan selesai
+        let d = 0;
+        for (let i = 0; i < CELLS; i++) d += b[i] === p ? 1 : b[i] === -p ? -1 : 0;
+        return d > 0 ? 10000 + d : d < 0 ? -10000 + d : 0;
+      }
+      return -negamax(b, -p, depth, -beta, -alpha, true, ctx);
+    }
+    moves.sort(byWeight);
+    let best = -INF;
+    for (let i = 0; i < moves.length; i++) {
+      const m = moves[i];
+      make(b, m.index, p, m.flips);
+      const s = -negamax(b, -p, depth - 1, -beta, -alpha, false, ctx);
+      unmake(b, m.index, p, m.flips);
+      if (s > best) best = s;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+
+  // Pencarian di akar; `rootMoves` = [{index, flips, score}] sudah terurut.
+  function searchRoot(b, p, depth, rootMoves, ctx) {
+    let alpha = -INF, bestScore = -INF, bestMove = rootMoves[0].index;
+    for (let i = 0; i < rootMoves.length; i++) {
+      const m = rootMoves[i];
+      make(b, m.index, p, m.flips);
+      const s = -negamax(b, -p, depth - 1, -INF, -alpha, false, ctx);
+      unmake(b, m.index, p, m.flips);
+      m.score = s;
+      if (s > bestScore) { bestScore = s; bestMove = m.index; }
+      if (s > alpha) alpha = s;
+    }
+    return { move: bestMove, score: bestScore };
+  }
+
+  /* --- Endgame solver: pencarian sempurna sampai papan penuh (skor = selisih bidak) --- */
+  function solveNode(b, p, alpha, beta, passed, empties, ctx) {
+    ctx.nodes++;
+    if ((ctx.nodes & 2047) === 0 && Date.now() > ctx.deadline) throw TIMEOUT;
+    const moves = getValidMoves(b, p);
+    if (!moves.length) {
+      if (passed) {
+        let d = 0;
+        for (let i = 0; i < CELLS; i++) d += b[i] === p ? 1 : b[i] === -p ? -1 : 0;
+        return d;
+      }
+      return -solveNode(b, -p, -beta, -alpha, true, empties, ctx);
+    }
+    if (empties > 5) {        // urutkan "fastest first": langkah yang membatasi lawan didahulukan
+      for (let i = 0; i < moves.length; i++) {
+        const m = moves[i];
+        make(b, m.index, p, m.flips);
+        m.key = countMoves(b, -p) * 4 - (CORNER_OF[m.index] < 0 && POSITION_WEIGHTS[m.index] >= 100 ? 8 : 0);
+        unmake(b, m.index, p, m.flips);
+      }
+      moves.sort(function (x, y) { return x.key - y.key; });
+    }
+    let best = -INF;
+    for (let i = 0; i < moves.length; i++) {
+      const m = moves[i];
+      make(b, m.index, p, m.flips);
+      const s = -solveNode(b, -p, -beta, -alpha, false, empties - 1, ctx);
+      unmake(b, m.index, p, m.flips);
+      if (s > best) best = s;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return best;
+  }
+
+  function solveRoot(b, p, rootMoves, empties, ctx) {
+    let alpha = -INF, bestScore = -INF, bestMove = rootMoves[0].index;
+    for (let i = 0; i < rootMoves.length; i++) {
+      const m = rootMoves[i];
+      make(b, m.index, p, m.flips);
+      const s = -solveNode(b, -p, -INF, -alpha, false, empties - 1, ctx);
+      unmake(b, m.index, p, m.flips);
+      if (s > bestScore) { bestScore = s; bestMove = m.index; }
+      if (s > alpha) alpha = s;
+    }
+    return { move: bestMove, score: bestScore };
+  }
+
+  /* --- Pemilih langkah per tingkat kesulitan --- */
+  function chooseEasy(moves) {
+    const corners = moves.filter(function (m) { return CORNERS.indexOf(m.index) >= 0; });
+    if (corners.length && Math.random() < 0.7) return { move: pickRandom(corners).index, info: { level: 'easy' } };
+    return { move: pickRandom(moves).index, info: { level: 'easy' } };
+  }
+
+  function chooseMedium(board, player, moves) {
+    const ctx = { nodes: 0, deadline: Infinity, evalFn: evaluateMedium };
+    const root = moves.map(function (m) { return { index: m.index, flips: m.flips, score: 0 }; }).sort(byWeight);
+    const r = searchRoot(board.slice(), player, 3, root, ctx);
+    return { move: r.move, info: { level: 'medium', depth: 3, nodes: ctx.nodes } };
+  }
+
+  // HARD: iterative deepening dengan batas waktu, lalu endgame solver bila sisa kotak <= 10.
+  function chooseHard(board, player, moves, opts, start) {
+    const limit = opts.timeLimit || 1000;
+    const empties = countEmpty(board);
+    const info = { level: 'hard', depth: 0, nodes: 0 };
+    if (empties === 60) return { move: pickRandom(moves).index, info: info };   // pembukaan simetris
+
+    let rootMoves = moves.map(function (m) { return { index: m.index, flips: m.flips, score: 0 }; }).sort(byWeight);
+    let best = rootMoves[0].index;
+    const solving = empties <= ENDGAME_EMPTIES;
+    const idCtx = { nodes: 0, deadline: start + (solving ? 300 : limit), evalFn: evaluateHard };
+    const maxDepth = Math.min(empties, 14);
+
+    for (let depth = 1; depth <= maxDepth; depth++) {
+      try {
+        const r = searchRoot(board.slice(), player, depth, rootMoves, idCtx);
+        best = r.move; info.depth = depth;
+        const bi = best;
+        rootMoves.sort(function (a, b) { return ((b.index === bi) - (a.index === bi)) || (b.score - a.score); });
+        if (Math.abs(r.score) > 9000) break;      // menang/kalah sudah pasti
+      } catch (e) {
+        if (e !== TIMEOUT) throw e;
+        break;
+      }
+    }
+    info.nodes = idCtx.nodes;
+
+    if (solving) {
+      const sCtx = { nodes: 0, deadline: start + limit * 1.8 };
+      try {
+        const r = solveRoot(board.slice(), player, rootMoves, empties, sCtx);
+        best = r.move; info.exact = r.score; info.solver = true;
+      } catch (e) {
+        if (e !== TIMEOUT) throw e;
+      }
+      info.nodes += sCtx.nodes;
+    }
+    return { move: best, info: info };
+  }
+
+  // Titik masuk: mengembalikan { move: indeks, info }. Langkah selalu salah satu langkah sah.
+  function chooseMove(board, player, level, opts) {
+    opts = opts || {};
+    const start = Date.now();
+    const b = Int8Array.from(board);
+    const moves = getValidMoves(b, player);
+    if (!moves.length) return { move: -1, info: {} };
+    let res;
+    if (moves.length === 1) res = { move: moves[0].index, info: { forced: true } };
+    else if (level === 'easy') res = chooseEasy(moves);
+    else if (level === 'medium') res = chooseMedium(b, player, moves);
+    else res = chooseHard(b, player, moves, opts, start);
+    res.info.ms = Date.now() - start;
+    return res;
+  }
+
+  return {
+    EMPTY: EMPTY, BLACK: BLACK, WHITE: WHITE, CORNERS: CORNERS,
+    createInitialBoard: createInitialBoard, getFlips: getFlips, getValidMoves: getValidMoves,
+    hasValidMove: hasValidMove, applyMove: applyMove, countPieces: countPieces,
+    isGameOver: isGameOver, getWinner: getWinner, getNextTurn: getNextTurn,
+    evaluateMedium: evaluateMedium, evaluateHard: evaluateHard, chooseMove: chooseMove
+  };
+}
+
+const Engine = createEngine();
+const BLACK = Engine.BLACK, WHITE = Engine.WHITE;
+
+/* =====================================================================
+   BAGIAN 6: PENYIMPANAN (localStorage, selalu dibungkus try/catch)
+   ===================================================================== */
+const KEYS = { settings: 'othello.settings.v1', stats: 'othello.stats.v1', game: 'othello.game.v1' };
+const LEVELS = ['easy', 'medium', 'hard'];
+const LEVEL_NAMES = { easy: 'Mudah', medium: 'Sedang', hard: 'Sulit' };
+
+const Store = {
+  get: function (key, fallback) {
+    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+    catch (e) { return fallback; }
+  },
+  set: function (key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { return false; }
+  },
+  remove: function (key) { try { localStorage.removeItem(key); } catch (e) { /* abaikan */ } }
+};
+
+let settings = { sound: true, hints: true, humanColor: BLACK, lastLevel: 'medium' };
+let stats = {};
+
+function loadSettings() {
+  const s = Store.get(KEYS.settings, {});
+  if (s && typeof s === 'object') {
+    if (typeof s.sound === 'boolean') settings.sound = s.sound;
+    if (typeof s.hints === 'boolean') settings.hints = s.hints;
+    if (s.humanColor === BLACK || s.humanColor === WHITE) settings.humanColor = s.humanColor;
+    if (LEVELS.indexOf(s.lastLevel) >= 0) settings.lastLevel = s.lastLevel;
+  }
+}
+function saveSettings() { Store.set(KEYS.settings, settings); }
+
+function emptyStats() {
+  const o = {};
+  LEVELS.forEach(function (l) { o[l] = { win: 0, loss: 0, draw: 0, best: null }; });
+  return o;
+}
+function loadStats() {
+  const raw = Store.get(KEYS.stats, null);
+  stats = emptyStats();
+  if (!raw || typeof raw !== 'object') return;
+  LEVELS.forEach(function (l) {
+    const r = raw[l];
+    if (!r) return;
+    ['win', 'loss', 'draw'].forEach(function (k) { if (Number.isFinite(r[k]) && r[k] >= 0) stats[l][k] = r[k]; });
+    if (r.best && Number.isFinite(r.best.me) && Number.isFinite(r.best.opp)) stats[l].best = { me: r.best.me, opp: r.best.opp };
+  });
+}
+function saveStats() { Store.set(KEYS.stats, stats); }
+
+// Hasil: 'win' | 'loss' | 'draw'. Skor terbaik = kemenangan dengan selisih bidak terbesar.
+function recordResult(level, result, me, opp) {
+  const s = stats[level];
+  if (!s) return;
+  s[result]++;
+  if (result === 'win' && (!s.best || (me - opp) > (s.best.me - s.best.opp))) s.best = { me: me, opp: opp };
+  saveStats();
+}
+
+function encodeBoard(b) {
+  let s = '';
+  for (let i = 0; i < 64; i++) s += b[i] === BLACK ? 'B' : b[i] === WHITE ? 'W' : '.';
+  return s;
+}
+function decodeBoard(s) {
+  if (typeof s !== 'string' || !/^[BW.]{64}$/.test(s)) return null;
+  const b = new Int8Array(64);
+  for (let i = 0; i < 64; i++) b[i] = s[i] === 'B' ? BLACK : s[i] === 'W' ? WHITE : 0;
+  return b;
+}
+
+function saveGame() {
+  if (!state || state.over) { Store.remove(KEYS.game); return; }
+  Store.set(KEYS.game, {
+    v: 1, board: encodeBoard(state.board), turn: state.turn, mode: state.mode, level: state.level,
+    humanColor: state.humanColor, lastMove: state.lastMove, moveCount: state.moveCount,
+    history: state.history.map(function (h) {
+      return { b: encodeBoard(h.board), p: h.player, l: h.lastMove, n: h.moveCount };
+    })
+  });
+}
+
+function loadGame() {
+  const g = Store.get(KEYS.game, null);
+  if (!g || g.v !== 1) return null;
+  const board = decodeBoard(g.board);
+  if (!board || (g.turn !== BLACK && g.turn !== WHITE)) return null;
+  if (g.mode !== 'ai' && g.mode !== 'two') return null;
+  if (LEVELS.indexOf(g.level) < 0 || (g.humanColor !== BLACK && g.humanColor !== WHITE)) return null;
+  if (!Array.isArray(g.history)) return null;
+  const history = [];
+  for (let i = 0; i < g.history.length; i++) {
+    const h = g.history[i], hb = decodeBoard(h && h.b);
+    if (!hb || (h.p !== BLACK && h.p !== WHITE)) return null;
+    history.push({ board: hb, player: h.p, lastMove: Number.isInteger(h.l) ? h.l : -1, moveCount: Number.isInteger(h.n) ? h.n : 0 });
+  }
+  if (Engine.isGameOver(board) || !Engine.hasValidMove(board, g.turn)) return null;
+  return {
+    board: board, turn: g.turn, mode: g.mode, level: g.level, humanColor: g.humanColor,
+    lastMove: Number.isInteger(g.lastMove) ? g.lastMove : -1, moveCount: Number.isInteger(g.moveCount) ? g.moveCount : history.length,
+    history: history, over: false, notice: '', hintIdx: -1
+  };
+}
+
+/* =====================================================================
+   BAGIAN 4: RENDERING UI & ANIMASI
+   ===================================================================== */
+const $ = function (sel) { return document.querySelector(sel); };
+const boardEl = $('#board');
+const cells = [];
+let focusIdx = 19;
+let state = null;            // state permainan aktif
+let thinking = false;        // komputer sedang berpikir
+let hinting = false;         // sedang mencari petunjuk
+let validSet = new Set();
+
+function coordName(i) { return 'abcdefgh'[i % 8] + (Math.floor(i / 8) + 1); }
+function sideName(color) { return color === BLACK ? 'Hitam' : 'Putih'; }
+function whoLabel(color) {
+  if (state.mode === 'two') return sideName(color);
+  return color === state.humanColor ? 'Anda' : 'Komputer';
+}
+function sideLabel(color) {
+  return state.mode === 'two' ? sideName(color) : sideName(color) + ' (' + whoLabel(color) + ')';
+}
+function isHumanTurn() { return state.mode === 'two' || state.turn === state.humanColor; }
+
+function buildBoard() {
+  boardEl.innerHTML = '';
+  for (let r = 0; r < 8; r++) {
+    const row = document.createElement('div');
+    row.className = 'board-row';
+    row.setAttribute('role', 'row');
+    for (let c = 0; c < 8; c++) {
+      const i = r * 8 + c;
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'cell';
+      cell.setAttribute('role', 'gridcell');
+      cell.dataset.idx = String(i);
+      cell.tabIndex = i === focusIdx ? 0 : -1;
+      cell._wrap = null;
+      cells.push(cell);
+      row.appendChild(cell);
+    }
+    boardEl.appendChild(row);
+  }
+  const top = $('#coordsTop'), left = $('#coordsLeft');
+  for (let i = 0; i < 8; i++) {
+    const a = document.createElement('span'); a.textContent = 'abcdefgh'[i]; top.appendChild(a);
+    const b = document.createElement('span'); b.textContent = String(i + 1); left.appendChild(b);
+  }
+}
+
+function createDisc(color) {
+  const wrap = document.createElement('span');
+  wrap.className = 'disc-wrap';
+  const disc = document.createElement('span');
+  disc.className = 'disc';
+  disc.dataset.c = color;
+  const fb = document.createElement('span'); fb.className = 'face fb';
+  const fw = document.createElement('span'); fw.className = 'face fw';
+  disc.appendChild(fb); disc.appendChild(fw);
+  wrap.appendChild(disc);
+  wrap._disc = disc;
+  return wrap;
+}
+
+function cellLabel(i) {
+  const v = state.board[i];
+  let t = coordName(i) + ', ' + (v === BLACK ? 'bidak hitam' : v === WHITE ? 'bidak putih' : 'kosong');
+  if (settings.hints && validSet.has(i)) t += ', langkah sah';
+  if (i === state.lastMove) t += ', langkah terakhir';
+  if (i === state.hintIdx) t += ', langkah yang disarankan';
+  return t;
+}
+
+function render() {
+  const b = state.board;
+  validSet = new Set();
+  if (!state.over && isHumanTurn() && !thinking) {
+    Engine.getValidMoves(b, state.turn).forEach(function (m) { validSet.add(m.index); });
+  }
+  boardEl.dataset.turn = state.turn === BLACK ? 'b' : 'w';
+  const lm = state.lastMove;
+  for (let i = 0; i < 64; i++) {
+    const cell = cells[i], v = b[i];
+    let wrap = cell._wrap;
+    if (v === 0) {
+      if (wrap) { wrap.remove(); cell._wrap = null; }
+    } else {
+      const c = v === BLACK ? 'b' : 'w';
+      if (!wrap) {
+        wrap = createDisc(c);
+        wrap.classList.add('pop');
+        wrap.addEventListener('animationend', onWrapAnimEnd);
+        cell.appendChild(wrap);
+        cell._wrap = wrap;
+      } else if (wrap._disc.dataset.c !== c) {
+        let delay = 0;
+        if (lm >= 0) {
+          const dist = Math.max(Math.abs(Math.floor(i / 8) - Math.floor(lm / 8)), Math.abs(i % 8 - lm % 8));
+          delay = Math.max(0, dist - 1) * 85;
+        }
+        wrap.style.setProperty('--d', delay + 'ms');
+        wrap._disc.style.setProperty('--d', delay + 'ms');
+        wrap.classList.remove('flipping', 'pop');
+        void wrap.offsetWidth;                       // memulai ulang animasi
+        wrap.classList.add('flipping');
+        wrap._disc.dataset.c = c;
+      }
+    }
+    cell.classList.toggle('valid', settings.hints && validSet.has(i));
+    cell.classList.toggle('last', i === lm);
+    cell.classList.toggle('best', i === state.hintIdx);
+    cell.setAttribute('aria-label', cellLabel(i));
+  }
+  updatePanel();
+}
+
+function onWrapAnimEnd(e) {
+  if (e.target === this) this.classList.remove('flipping', 'pop');
+}
+
+function updatePanel() {
+  const c = Engine.countPieces(state.board);
+  $('#scoreBlack').textContent = c.black;
+  $('#scoreWhite').textContent = c.white;
+  $('#nameBlack').textContent = sideLabel(BLACK);
+  $('#nameWhite').textContent = sideLabel(WHITE);
+  $('#cardBlack').classList.toggle('active', !state.over && state.turn === BLACK);
+  $('#cardWhite').classList.toggle('active', !state.over && state.turn === WHITE);
+  $('#infoTurn').textContent = state.over ? 'Selesai' : (state.mode === 'two' ? sideName(state.turn) : whoLabel(state.turn));
+  $('#infoLevel').textContent = state.mode === 'two' ? '2 Pemain' : LEVEL_NAMES[state.level];
+  $('#infoMoves').textContent = state.moveCount;
+
+  const th = $('#thinking');
+  th.classList.toggle('on', thinking || hinting);
+  $('#thinkingText').textContent = hinting ? 'Mencari langkah terbaik...' : 'Komputer sedang berpikir...';
+  th.setAttribute('aria-hidden', thinking || hinting ? 'false' : 'true');
+
+  const undoable = !thinking && !hinting && !state.over && undoIndex() >= 0;
+  $('#undoBtn').disabled = !undoable;
+  $('#hintBtn').disabled = thinking || hinting || state.over || !isHumanTurn();
+  $('#soundBtn').textContent = settings.sound ? '🔊 Suara' : '🔇 Senyap';
+  $('#soundBtn').setAttribute('aria-pressed', settings.sound ? 'true' : 'false');
+  $('#hintsToggle').checked = settings.hints;
+
+  // Teks status
+  const st = $('#statusLine');
+  let text, cls = '';
+  if (state.notice) { text = state.notice; cls = state.noticeKind || 'notice'; }
+  else if (state.over) text = 'Permainan selesai.';
+  else if (thinking) text = 'Giliran ' + sideLabel(state.turn) + '...';
+  else if (state.mode === 'two') text = 'Giliran ' + sideName(state.turn) + (settings.hints ? ' — pilih kotak bertanda titik.' : '.');
+  else if (isHumanTurn()) text = 'Giliran Anda (' + sideName(state.turn) + ')' + (settings.hints ? ' — pilih kotak bertanda titik.' : '.');
+  else text = 'Giliran Komputer (' + sideName(state.turn) + ')';
+  st.textContent = text;
+  st.className = 'status ' + cls;
+}
+
+function setNotice(text, kind) { state.notice = text; state.noticeKind = kind || 'notice'; }
+
+let toastTimer = null;
+function toast(text, ms) {
+  const t = $('#toast');
+  t.textContent = text;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove('show'); }, ms || 2200);
+}
+
+function showScreen(name) {
+  $('#menuScreen').classList.toggle('hidden', name !== 'menu');
+  $('#gameScreen').classList.toggle('hidden', name !== 'game');
+  if (name === 'menu') refreshMenu();
+  window.scrollTo(0, 0);
+}
+
+function refreshMenu() {
+  LEVELS.forEach(function (l) {
+    const s = stats[l];
+    $('#lvStat-' + l).textContent = 'Menang ' + s.win + ' · Kalah ' + s.loss + ' · Seri ' + s.draw;
+  });
+  const tb = $('#statsTable');
+  let html = '<tr><th>Tingkat</th><th>Menang</th><th>Kalah</th><th>Seri</th><th>Skor terbaik</th></tr>';
+  LEVELS.forEach(function (l) {
+    const s = stats[l];
+    html += '<tr><td>' + LEVEL_NAMES[l] + '</td><td>' + s.win + '</td><td>' + s.loss + '</td><td>' + s.draw +
+      '</td><td>' + (s.best ? s.best.me + ' – ' + s.best.opp : '–') + '</td></tr>';
+  });
+  tb.innerHTML = html;
+  $('#resumeBtn').classList.toggle('hidden', !(state && !state.over));
+  $('#menuSound').checked = settings.sound;
+  $('#menuHints').checked = settings.hints;
+  document.querySelectorAll('.seg button').forEach(function (b) {
+    b.setAttribute('aria-checked', String(Number(b.dataset.color) === settings.humanColor));
+  });
+}
+
+/* ---------- Efek suara (Web Audio API, tanpa file eksternal) ---------- */
+const Sound = {
+  ctx: null,
+  init: function () {
+    try {
+      if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) this.ctx = new AC(); }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    } catch (e) { /* suara opsional */ }
+  },
+  tone: function (freq, dur, type, vol, delayMs, endFreq) {
+    if (!settings.sound || !this.ctx) return;
+    try {
+      const t = this.ctx.currentTime + (delayMs || 0) / 1000;
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(freq, t);
+      if (endFreq) o.frequency.exponentialRampToValueAtTime(endFreq, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol || 0.15, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(this.ctx.destination);
+      o.start(t); o.stop(t + dur + 0.03);
+    } catch (e) { /* abaikan */ }
+  },
+  place: function () { this.tone(240, 0.09, 'triangle', 0.3, 0, 120); },
+  flips: function (n) { for (let i = 0; i < Math.min(n, 6); i++) this.tone(560 + i * 45, 0.05, 'square', 0.05, 90 + i * 85); },
+  pass: function () { this.tone(330, 0.15, 'sine', 0.2, 0); this.tone(220, 0.22, 'sine', 0.2, 160); },
+  invalid: function () { this.tone(150, 0.12, 'square', 0.08, 0, 100); },
+  win: function () { [523, 659, 784, 1047].forEach(function (f, i) { Sound.tone(f, 0.22, 'triangle', 0.22, i * 140); }); },
+  lose: function () { [392, 330, 262, 196].forEach(function (f, i) { Sound.tone(f, 0.26, 'sine', 0.22, i * 170); }); },
+  draw: function () { this.tone(440, 0.2, 'sine', 0.2, 0); this.tone(440, 0.3, 'sine', 0.2, 240); }
+};
+
+/* =====================================================================
+   BAGIAN 5: EVENT HANDLER & ALUR GAME
+   ===================================================================== */
+
+/* ---------- Komunikasi dengan AI (Web Worker inline via Blob, cadangan: setTimeout) ---------- */
+let worker = null, workerFailed = false, reqCounter = 0;
+const pending = new Map();
+
+function getWorker() {
+  if (workerFailed) return null;
+  if (worker) return worker;
+  try {
+    const src = 'const Engine=(' + createEngine.toString() + ')();\n' +
+      'self.onmessage=function(e){var d=e.data;var r=Engine.chooseMove(d.board,d.player,d.level,d.opts);' +
+      'self.postMessage({id:d.id,move:r.move,info:r.info});};';
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    worker = new Worker(url);
+    worker.onmessage = function (e) {
+      const p = pending.get(e.data.id);
+      if (p) { pending.delete(e.data.id); p.resolve(e.data.move); }
+    };
+    worker.onerror = function () {
+      workerFailed = true;
+      try { worker.terminate(); } catch (err) { /* abaikan */ }
+      worker = null;
+      const items = Array.from(pending.values());
+      pending.clear();
+      items.forEach(function (p) { runOnMainThread(p.args, p.resolve); });
+    };
+    return worker;
+  } catch (e) {
+    workerFailed = true; worker = null;
+    return null;
+  }
+}
+
+function runOnMainThread(args, resolve) {
+  setTimeout(function () {
+    resolve(Engine.chooseMove(args.board, args.player, args.level, args.opts).move);
+  }, 30);
+}
+
+function requestSearch(board, player, level, opts) {
+  return new Promise(function (resolve) {
+    const args = { board: board.slice(), player: player, level: level, opts: opts || {} };
+    const w = getWorker();
+    if (!w) { runOnMainThread(args, resolve); return; }
+    const id = ++reqCounter;
+    pending.set(id, { resolve: resolve, args: args });
+    try { w.postMessage({ id: id, board: args.board, player: player, level: level, opts: args.opts }); }
+    catch (e) { pending.delete(id); runOnMainThread(args, resolve); }
+  });
+}
+
+// Membatalkan semua pencarian yang berjalan (worker dihentikan agar tidak menghabiskan CPU).
+function abortSearches() {
+  aiToken++; hintToken++;
+  thinking = false; hinting = false;
+  pending.clear();
+  if (worker) { try { worker.terminate(); } catch (e) { /* abaikan */ } worker = null; }
+}
+
+/* ---------- Alur permainan ---------- */
+let aiToken = 0, hintToken = 0;
+let resultTimer = null;
+
+function newGameState(mode, level, humanColor) {
+  return {
+    board: Engine.createInitialBoard(), turn: BLACK, mode: mode, level: level, humanColor: humanColor,
+    lastMove: -1, moveCount: 0, history: [], over: false, notice: '', noticeKind: '', hintIdx: -1, extraDelay: 0
+  };
+}
+
+function startNewGame(mode, level) {
+  abortSearches();
+  clearTimeout(resultTimer);
+  closeAllModals();
+  if (mode === 'ai') { settings.lastLevel = level; saveSettings(); }
+  state = newGameState(mode, level || settings.lastLevel, settings.humanColor);
+  showScreen('game');
+  clearBoardDom();
+  focusIdx = 19;
+  syncFocus();
+  render();
+  saveGame();
+  maybeStartAI();
+}
+
+function clearBoardDom() {
+  cells.forEach(function (c) { if (c._wrap) { c._wrap.remove(); c._wrap = null; } });
+}
+
+function playMove(idx) {
+  const mover = state.turn;
+  const res = Engine.applyMove(state.board, idx, mover);
+  if (!res) return false;
+  if (hinting) { hintToken++; hinting = false; if (worker) { try { worker.terminate(); } catch (e) { /* abaikan */ } worker = null; pending.clear(); } }
+  state.history.push({ board: state.board.slice(), player: mover, lastMove: state.lastMove, moveCount: state.moveCount });
+  state.board = res.board;
+  state.lastMove = idx;
+  state.moveCount++;
+  state.hintIdx = -1;
+  state.notice = '';
+  const nx = Engine.getNextTurn(state.board, mover);
+  state.turn = nx.turn;
+  state.over = nx.over;
+  state.extraDelay = 0;
+  Sound.place();
+  Sound.flips(res.flips.length);
+  if (nx.passed) {
+    const msg = whoLabel(nx.passed) + ' (' + sideName(nx.passed) + ') tidak punya langkah sah — giliran dilewati (PASS). ' +
+      whoLabel(mover) + ' (' + sideName(mover) + ') jalan lagi.';
+    setNotice(msg);
+    toast('PASS: ' + whoLabel(nx.passed) + ' tidak punya langkah sah', 2800);
+    Sound.pass();
+    if (state.mode === 'ai' && nx.passed === state.humanColor) state.extraDelay = 900;
+  }
+  focusIdx = idx;
+  syncFocus();
+  render();
+  if (state.over) finishGame(); else { saveGame(); maybeStartAI(); }
+  return true;
+}
+
+function maybeStartAI() {
+  if (!state || state.over || state.mode !== 'ai' || state.turn === state.humanColor || thinking) return;
+  thinking = true;
+  const token = ++aiToken;
+  const minDelay = 450 + Math.random() * 150 + (state.extraDelay || 0);
+  const t0 = performance.now();
+  const snapshotMoves = state.moveCount;
+  render();
+  requestSearch(state.board, state.turn, state.level, { timeLimit: 1000 }).then(function (idx) {
+    if (token !== aiToken) return;
+    const wait = Math.max(0, minDelay - (performance.now() - t0));
+    setTimeout(function () {
+      if (token !== aiToken || !state || state.moveCount !== snapshotMoves) return;
+      thinking = false;
+      let move = idx;
+      if (!validMoveFor(state.board, state.turn, move)) {         // pengaman: tidak pernah melangkah ilegal
+        const all = Engine.getValidMoves(state.board, state.turn);
+        move = all[Math.floor(Math.random() * all.length)].index;
+      }
+      playMove(move);
+    }, wait);
+  });
+}
+
+function validMoveFor(board, player, idx) {
+  return Number.isInteger(idx) && idx >= 0 && idx < 64 && Engine.getFlips(board, idx, player).length > 0;
+}
+
+function onCellClick(i) {
+  if (!state || state.over || thinking) return;
+  if (!isHumanTurn()) return;
+  if (!validSet.has(i)) {
+    Sound.invalid();
+    const cell = cells[i];
+    cell.classList.remove('shake'); void cell.offsetWidth; cell.classList.add('shake');
+    setTimeout(function () { cell.classList.remove('shake'); }, 320);
+    if (state.board[i] === 0) { setNotice('Langkah tidak sah. Pilih kotak yang mengapit bidak lawan.', 'error'); updatePanel(); }
+    return;
+  }
+  playMove(i);
+}
+
+function finishGame() {
+  abortSearches();
+  const c = Engine.countPieces(state.board);
+  const winner = Engine.getWinner(state.board);
+  let result = 'draw';
+  if (state.mode === 'ai') {
+    const me = state.humanColor === BLACK ? c.black : c.white;
+    const opp = state.humanColor === BLACK ? c.white : c.black;
+    result = winner === 0 ? 'draw' : winner === state.humanColor ? 'win' : 'loss';
+    recordResult(state.level, result, me, opp);
+  }
+  state.result = result;
+  saveGame();                      // menghapus game tersimpan karena sudah selesai
+  render();
+  resultTimer = setTimeout(function () { showResult(c, winner, result); }, 1100);
+}
+
+function showResult(c, winner, result) {
+  let title, sub;
+  if (state.mode === 'ai') {
+    title = result === 'win' ? 'Anda Menang! 🎉' : result === 'loss' ? 'Anda Kalah' : 'Seri';
+    sub = result === 'win' ? 'Selamat, Anda mengalahkan komputer (' + LEVEL_NAMES[state.level] + ').'
+      : result === 'loss' ? 'Komputer (' + LEVEL_NAMES[state.level] + ') menang kali ini. Coba lagi!' : 'Jumlah bidak sama.';
+    if (result === 'win') Sound.win(); else if (result === 'loss') Sound.lose(); else Sound.draw();
+  } else {
+    title = winner === 0 ? 'Seri' : sideName(winner) + ' Menang!';
+    sub = winner === 0 ? 'Jumlah bidak sama.' : 'Selamat untuk pemain ' + sideName(winner) + '.';
+    if (winner === 0) Sound.draw(); else Sound.win();
+  }
+  $('#resultTitle').textContent = title;
+  $('#resultSub').textContent = sub;
+  $('#resultScore').innerHTML =
+    '<span><span class="chip black"></span>' + c.black + '</span><span style="opacity:.5">–</span><span><span class="chip white"></span>' + c.white + '</span>';
+  $('#resultNote').textContent = 'Langkah: ' + state.moveCount + (c.empty ? ' · Kotak kosong: ' + c.empty : '');
+  $('#changeLevelBtn').textContent = state.mode === 'ai' ? 'Ganti Kesulitan' : 'Menu Utama';
+  openModal('resultModal', '#againBtn');
+}
+
+/* ---------- Undo ---------- */
+function undoIndex() {
+  if (!state || !state.history.length) return -1;
+  if (state.mode === 'two') return state.history.length - 1;
+  for (let i = state.history.length - 1; i >= 0; i--) if (state.history[i].player === state.humanColor) return i;
+  return -1;
+}
+
+function undo() {
+  if (thinking || hinting || state.over) return;
+  const idx = undoIndex();
+  if (idx < 0) return;
+  const snap = state.history[idx];
+  state.board = snap.board.slice();
+  state.turn = snap.player;
+  state.lastMove = snap.lastMove;
+  state.moveCount = snap.moveCount;
+  state.history.length = idx;
+  state.hintIdx = -1;
+  state.notice = '';
+  state.extraDelay = 0;
+  render();
+  saveGame();
+  maybeStartAI();      // bila yang melangkah kembali adalah komputer (kasus 2 pemain tidak berlaku)
+}
+
+/* ---------- Petunjuk ---------- */
+function showHint() {
+  if (thinking || hinting || state.over || !isHumanTurn()) return;
+  hinting = true;
+  const token = ++hintToken;
+  const snapshotMoves = state.moveCount;
+  state.hintIdx = -1;
+  state.notice = '';
+  render();
+  requestSearch(state.board, state.turn, 'hard', { timeLimit: 700 }).then(function (idx) {
+    if (token !== hintToken || !state || state.moveCount !== snapshotMoves) return;
+    hinting = false;
+    if (validMoveFor(state.board, state.turn, idx)) {
+      state.hintIdx = idx;
+      setNotice('Petunjuk: langkah terbaik ada di ' + coordName(idx) + '.');
+    }
+    render();
+  });
+}
+
+/* ---------- Modal ---------- */
+let lastFocusEl = null;
+function openModal(id, focusSel) {
+  const m = document.getElementById(id);
+  lastFocusEl = document.activeElement;
+  m.classList.remove('hidden');
+  const target = (focusSel && m.querySelector(focusSel)) || m.querySelector('button');
+  if (target) target.focus();
+}
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+  if (lastFocusEl && document.contains(lastFocusEl)) { try { lastFocusEl.focus(); } catch (e) { /* abaikan */ } }
+}
+function closeAllModals() {
+  document.querySelectorAll('.backdrop').forEach(function (m) { m.classList.add('hidden'); });
+}
+function openModalCount() { return document.querySelectorAll('.backdrop:not(.hidden)').length; }
+
+let confirmAction = null;
+function askConfirm(title, text, okLabel, action) {
+  $('#confirmTitle').textContent = title;
+  $('#confirmText').textContent = text;
+  $('#confirmOk').textContent = okLabel;
+  confirmAction = action;
+  openModal('confirmModal', '.btn.primary');
+}
+
+/* ---------- Keyboard ---------- */
+function syncFocus() {
+  cells.forEach(function (c, i) { c.tabIndex = i === focusIdx ? 0 : -1; });
+}
+boardEl.addEventListener('keydown', function (e) {
+  const keys = { ArrowUp: -8, ArrowDown: 8, ArrowLeft: -1, ArrowRight: 1 };
+  if (!(e.key in keys) && e.key !== 'Home' && e.key !== 'End') return;
+  e.preventDefault();
+  const r = Math.floor(focusIdx / 8), c = focusIdx % 8;
+  let nr = r, nc = c;
+  if (e.key === 'ArrowUp') nr = Math.max(0, r - 1);
+  else if (e.key === 'ArrowDown') nr = Math.min(7, r + 1);
+  else if (e.key === 'ArrowLeft') nc = Math.max(0, c - 1);
+  else if (e.key === 'ArrowRight') nc = Math.min(7, c + 1);
+  else if (e.key === 'Home') nc = 0;
+  else if (e.key === 'End') nc = 7;
+  focusIdx = nr * 8 + nc;
+  syncFocus();
+  cells[focusIdx].focus();
+});
+boardEl.addEventListener('click', function (e) {
+  const cell = e.target.closest('.cell');
+  if (!cell) return;
+  focusIdx = Number(cell.dataset.idx);
+  syncFocus();
+  onCellClick(focusIdx);
+});
+
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && openModalCount()) {
+    const open = document.querySelector('.backdrop:not(.hidden)');
+    closeModal(open.id);
+  } else if (e.key === 'Tab' && openModalCount()) {            // perangkap fokus sederhana di dalam modal
+    const open = document.querySelector('.backdrop:not(.hidden)');
+    const f = open.querySelectorAll('button:not([disabled])');
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    if (!open.contains(document.activeElement)) { first.focus(); e.preventDefault(); }
+    else if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); }
+    else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
+  }
+});
+['pointerdown', 'keydown', 'touchstart'].forEach(function (ev) {
+  document.addEventListener(ev, function () { Sound.init(); }, { capture: true, passive: true });
+});
+
+/* ---------- Tombol ---------- */
+function setSound(on) { settings.sound = on; saveSettings(); if (on) { Sound.init(); Sound.place(); } if (state) updatePanel(); refreshMenuToggles(); }
+function setHints(on) { settings.hints = on; saveSettings(); if (state) render(); refreshMenuToggles(); }
+function refreshMenuToggles() { $('#menuSound').checked = settings.sound; $('#menuHints').checked = settings.hints; }
+
+document.querySelectorAll('.level-btn').forEach(function (b) {
+  b.addEventListener('click', function () { startNewGame('ai', b.dataset.level); });
+});
+$('#twoPlayerBtn').addEventListener('click', function () { startNewGame('two', settings.lastLevel); });
+$('#resumeBtn').addEventListener('click', function () { showScreen('game'); render(); maybeStartAI(); });
+document.querySelectorAll('.seg button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    settings.humanColor = Number(b.dataset.color);
+    saveSettings();
+    refreshMenu();
+  });
+});
+$('#menuSound').addEventListener('change', function (e) { setSound(e.target.checked); });
+$('#menuHints').addEventListener('change', function (e) { setHints(e.target.checked); });
+$('#hintsToggle').addEventListener('change', function (e) { setHints(e.target.checked); });
+$('#soundBtn').addEventListener('click', function () { setSound(!settings.sound); });
+$('#undoBtn').addEventListener('click', undo);
+$('#hintBtn').addEventListener('click', showHint);
+$('#rulesBtn').addEventListener('click', function () { openModal('rulesModal'); });
+$('#rulesBtnMenu').addEventListener('click', function () { openModal('rulesModal'); });
+$('#levelBtn').addEventListener('click', function () { showScreen('menu'); });
+$('#newBtn').addEventListener('click', function () {
+  const restart = function () { startNewGame(state.mode, state.level); };
+  if (state.over || state.moveCount === 0) restart();
+  else askConfirm('Mulai game baru?', 'Permainan yang sedang berjalan akan dihapus.', 'Ya, mulai baru', restart);
+});
+$('#resetStatsBtn').addEventListener('click', function () {
+  askConfirm('Reset statistik?', 'Semua catatan menang, kalah, seri, dan skor terbaik akan dihapus.', 'Ya, reset', function () {
+    stats = emptyStats(); saveStats(); refreshMenu();
+  });
+});
+$('#confirmOk').addEventListener('click', function () {
+  const act = confirmAction; confirmAction = null;
+  closeModal('confirmModal');
+  if (act) act();
+});
+$('#againBtn').addEventListener('click', function () { startNewGame(state.mode, state.level); });
+$('#changeLevelBtn').addEventListener('click', function () { closeAllModals(); showScreen('menu'); });
+document.querySelectorAll('[data-close]').forEach(function (b) {
+  b.addEventListener('click', function () { closeModal(b.dataset.close); });
+});
+document.querySelectorAll('.backdrop').forEach(function (bd) {
+  bd.addEventListener('click', function (e) { if (e.target === bd) closeModal(bd.id); });
+});
+
+/* ---------- Inisialisasi ---------- */
+function init() {
+  loadSettings();
+  loadStats();
+  buildBoard();
+  const saved = loadGame();
+  if (saved) {
+    state = saved;
+    showScreen('game');
+    render();
+    toast('Permainan sebelumnya dilanjutkan', 2000);
+    maybeStartAI();
+  } else {
+    state = null;
+    Store.remove(KEYS.game);
+    showScreen('menu');
+  }
+}
+init();
+</script>
+</body>
+</html>
